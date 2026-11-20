@@ -35,13 +35,6 @@ publish() { # platform version file tag
   sha=$(sha256sum "$file" | cut -d' ' -f1)
   size=$(stat -c %s "$file")
 
-  # 1) GitHub release with the file attached (the PC app only installs from .../releases/download/...).
-  if gh release view "$tag" -R "$REPO" >/dev/null 2>&1; then
-    gh release upload "$tag" "$file" -R "$REPO" --clobber
-  else
-    gh release create "$tag" "$file" -R "$REPO" --title "SenseChalk $([ "$platform" = android ] && echo 'Android ')$version" \
-      --notes "$( [ -f "notes/${name%.*}.md" ] && cat "notes/${name%.*}.md"; printf '\n\n파일: %s\nsha256: %s\n' "$name" "$sha")"
-  fi
   local download="https://github.com/$REPO/releases/download/$tag/$name"
   local link="https://github.com/$REPO/releases/tag/$tag"
   [ "$platform" = android ] && link="$SITE_URL"
@@ -76,6 +69,13 @@ publish() { # platform version file tag
     echo "$platform $version is already the active notice"; return 0
   fi
 
+  # GitHub release with the file attached (the PC app only installs from .../releases/download/...).
+  if gh release view "$tag" -R "$REPO" >/dev/null 2>&1; then
+    gh release upload "$tag" "$file" -R "$REPO" --clobber
+  else
+    gh release create "$tag" "$file" -R "$REPO" --title "SenseChalk $([ "$platform" = android ] && echo 'Android ')$version" \
+      --notes "$( [ -f "notes/${name%.*}.md" ] && cat "notes/${name%.*}.md"; printf '\n\n파일: %s\nsha256: %s\n' "$name" "$sha")"
+  fi
   curl -fsS "$SUPABASE_URL/rest/v1/rpc/publish_app_release" \
     "${AUTH[@]}" \
     -H "Content-Type: application/json" -d "$body" | jq '{platform, latest_version, download_url, sha256}'
