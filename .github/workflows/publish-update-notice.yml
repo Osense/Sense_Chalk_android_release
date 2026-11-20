@@ -1,0 +1,46 @@
+# 새 버전 알림: main에 SenseChalk-Android-<버전>.apk 또는 notes/*.md를 올리면
+#  1) GitHub 릴리스 android-v<버전>을 만들고 APK를 붙이고
+#  2) Supabase app_releases(platform=android)에 버전/주소/sha256/바뀐 내용을 기록해요.
+#
+# 필요한 저장소 Secret (Settings → Secrets and variables → Actions):
+#   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API Keys → Secret key (sb_secret_...)
+#                              또는 Legacy API Keys 탭의 service_role 키
+# 선택 Variable: SUPABASE_URL (기본값 https://xwclrqtyynhkziwpwvyq.supabase.co)
+name: Publish update notice
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'SenseChalk-Android-*.apk'
+      - 'notes/*.md'
+      - '.github/workflows/publish-update-notice.yml'
+      - '.github/scripts/publish-update-notice.sh'
+  workflow_dispatch:
+    inputs:
+      message:
+        description: '알림 문구 (비우면 notes 파일 또는 기본 문구)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-update-notice
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Release and record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://xwclrqtyynhkziwpwvyq.supabase.co' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NOTICE_MESSAGE: ${{ github.event.inputs.message || '' }}
+        run: bash .github/scripts/publish-update-notice.sh

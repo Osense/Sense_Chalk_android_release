@@ -1,0 +1,2 @@
+# No Git LFS in this repository: APKs are small (a few MB) and stored as normal files.
+*.apk binary
