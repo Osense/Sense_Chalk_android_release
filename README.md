@@ -2,7 +2,7 @@
 
 ## 내려받기 (Android)
 
-- [SenseChalk-Android-0.9.1.apk](https://github.com/Osense/Sense_chalk_android_release/raw/main/SenseChalk-Android-0.9.1.apk) (약 3.3MB)
+- [SenseChalk-Android-0.9.2.apk](https://github.com/Osense/Sense_chalk_android_release/raw/main/SenseChalk-Android-0.9.2.apk) (약 3.3MB)
 - 모든 버전: [Releases](https://github.com/Osense/Sense_chalk_android_release/releases)
 - 제품 소개 · 라이선스: https://wsns.studio/products/sense-chalk
 
