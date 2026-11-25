@@ -10,9 +10,26 @@ if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
   exit 1
 fi
 
+# 2026-11-25: notices live in the WSNS project (tables/RPCs prefixed chalk_). Phones on 0.9.3 and older still read the
+# old SenseChalk project, so while LEGACY_SUPABASE_SERVICE_ROLE_KEY is set the same notice is also written there
+# (old names) and those phones are told to update. Remove that secret once nobody runs the old builds.
 # New secret keys (sb_secret_...) go only in the apikey header; a legacy service_role JWT also as Bearer.
-AUTH=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY")
-case "$SUPABASE_SERVICE_ROLE_KEY" in eyJ*) AUTH+=(-H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY");; esac
+auth_for() { # key -> curl header args, one per line
+  printf '%s\n' -H "apikey: $1"
+  case "$1" in eyJ*) printf '%s\n' -H "Authorization: Bearer $1";; esac
+}
+mapfile -t AUTH < <(auth_for "$SUPABASE_SERVICE_ROLE_KEY")
+LEGACY_AUTH=()
+if [ -n "${LEGACY_SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+  mapfile -t LEGACY_AUTH < <(auth_for "$LEGACY_SUPABASE_SERVICE_ROLE_KEY")
+fi
+
+current_notice() { # url prefix platform auth... -> "sha|title|message"
+  local url=$1 prefix=$2 platform=$3; shift 3
+  curl -fsS "$url/rest/v1/rpc/${prefix}latest_app_release" "$@" \
+    -H "Content-Type: application/json" -d "{\"p_platform\":\"$platform\"}" \
+    | jq -r '(.[0].sha256 // "") + "|" + (.[0].title // "") + "|" + (.[0].message // "")'
+}
 
 # Keep the repository LFS-free: no LFS rules, no file over 50 MB (GitHub warns at 50, refuses at 100).
 if grep -qs 'filter=lfs' .gitattributes; then
@@ -61,11 +78,14 @@ publish() { # platform version file tag
     '{p_platform:$p, p_version:$v, p_title:$t, p_message:$m, p_link_url:$l, p_download_url:$d, p_sha256:$s, p_file_size:$z, p_published_by:$by}')
 
   # Skip if this exact file is already the active notice (re-runs, README-only commits).
-  local current
-  current=$(curl -fsS "$SUPABASE_URL/rest/v1/rpc/latest_app_release" \
-    "${AUTH[@]}" \
-    -H "Content-Type: application/json" -d "{\"p_platform\":\"$platform\"}" | jq -r '(.[0].sha256 // "") + "|" + (.[0].title // "") + "|" + (.[0].message // "")')
-  if [ "$current" = "$sha|$title|$message" ]; then
+  local current legacy_needed=0
+  current=$(current_notice "$SUPABASE_URL" chalk_ "$platform" "${AUTH[@]}")
+  if [ ${#LEGACY_AUTH[@]} -gt 0 ]; then
+    local legacy
+    legacy=$(current_notice "$LEGACY_SUPABASE_URL" "" "$platform" "${LEGACY_AUTH[@]}" || echo "unreachable")
+    [ "$legacy" = "$sha|$title|$message" ] || legacy_needed=1
+  fi
+  if [ "$current" = "$sha|$title|$message" ] && [ $legacy_needed = 0 ]; then
     echo "$platform $version is already the active notice"; return 0
   fi
 
@@ -76,10 +96,20 @@ publish() { # platform version file tag
     gh release create "$tag" "$file" -R "$REPO" --title "SenseChalk $([ "$platform" = android ] && echo 'Android ')$version" \
       --notes "$( [ -f "notes/${name%.*}.md" ] && cat "notes/${name%.*}.md"; printf '\n\n파일: %s\nsha256: %s\n' "$name" "$sha")"
   fi
-  curl -fsS "$SUPABASE_URL/rest/v1/rpc/publish_app_release" \
-    "${AUTH[@]}" \
-    -H "Content-Type: application/json" -d "$body" | jq '{platform, latest_version, download_url, sha256}'
-  echo "::notice::$platform $version recorded ($download)"
+  if [ "$current" != "$sha|$title|$message" ]; then
+    curl -fsS "$SUPABASE_URL/rest/v1/rpc/chalk_publish_app_release" \
+      "${AUTH[@]}" \
+      -H "Content-Type: application/json" -d "$body" | jq '{platform, latest_version, download_url, sha256}'
+    echo "::notice::$platform $version recorded ($download)"
+  fi
+  if [ $legacy_needed = 1 ]; then
+    if curl -fsS "$LEGACY_SUPABASE_URL/rest/v1/rpc/publish_app_release" "${LEGACY_AUTH[@]}" \
+         -H "Content-Type: application/json" -d "$body" >/dev/null; then
+      echo "::notice::$platform $version also recorded in the old SenseChalk project (for builds before the move)"
+    else
+      echo "::warning::could not record $platform $version in the old SenseChalk project"
+    fi
+  fi
 }
 
 [ -n "$AND_VER" ] && publish android "$AND_VER" "SenseChalk-Android-$AND_VER.apk" "android-v$AND_VER"

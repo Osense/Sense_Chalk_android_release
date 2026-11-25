@@ -3,9 +3,11 @@
 #  2) Supabase app_releases(platform=android)에 버전/주소/sha256/바뀐 내용을 기록해요.
 #
 # 필요한 저장소 Secret (Settings → Secrets and variables → Actions):
-#   SUPABASE_SERVICE_ROLE_KEY  Supabase → Project Settings → API Keys → Secret key (sb_secret_...)
+#   SUPABASE_SERVICE_ROLE_KEY  WSNS 프로젝트 Supabase → Project Settings → API Keys → Secret key (sb_secret_...)
+#   LEGACY_SUPABASE_SERVICE_ROLE_KEY  (옮기는 동안만) 옛 SenseChalk 프로젝트의 Secret key. 있으면 알림을 옛 프로젝트에도 기록해서
+#                              0.9.3 이하 폰도 업데이트 알림을 받아요. 다들 새 버전으로 바뀌면 지우세요.
 #                              또는 Legacy API Keys 탭의 service_role 키
-# 선택 Variable: SUPABASE_URL (기본값 https://xwclrqtyynhkziwpwvyq.supabase.co)
+# 선택 Variable: SUPABASE_URL (기본값 https://cqqhvxrgugomyekbpwqp.supabase.co, WSNS), LEGACY_SUPABASE_URL (기본값 옛 https://xwclrqtyynhkziwpwvyq.supabase.co)
 name: Publish update notice
 
 on:
@@ -40,7 +42,9 @@ jobs:
       - name: Release and record
         env:
           GH_TOKEN: ${{ github.token }}
-          SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://xwclrqtyynhkziwpwvyq.supabase.co' }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || 'https://cqqhvxrgugomyekbpwqp.supabase.co' }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LEGACY_SUPABASE_URL: ${{ vars.LEGACY_SUPABASE_URL || 'https://xwclrqtyynhkziwpwvyq.supabase.co' }}
+          LEGACY_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.LEGACY_SUPABASE_SERVICE_ROLE_KEY }}
           NOTICE_MESSAGE: ${{ github.event.inputs.message || '' }}
         run: bash .github/scripts/publish-update-notice.sh
